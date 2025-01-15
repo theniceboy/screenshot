@@ -19,6 +19,8 @@ import 'src/platform_specific/file_manager/file_manager.dart';
 class ScreenshotController {
   late GlobalKey _containerKey;
 
+  Size longWidgetSize = Size.zero;
+
   ScreenshotController() {
     _containerKey = GlobalKey();
   }
@@ -304,7 +306,7 @@ class ScreenshotController {
       BuildContext? context,
       BoxConstraints constraints = const BoxConstraints(
         maxHeight: double.maxFinite,
-      )}) async {
+      )}) {
     final PipelineOwner pipelineOwner = PipelineOwner();
     final _MeasurementView rootView =
         pipelineOwner.rootNode = _MeasurementView(constraints);
@@ -321,6 +323,10 @@ class ScreenshotController {
     try {
       rootView.scheduleInitialLayout();
       pipelineOwner.flushLayout();
+
+      try {
+        longWidgetSize = rootView.size;
+      } catch (_) {}
 
       ///
       /// Calculate Size, and capture widget.
