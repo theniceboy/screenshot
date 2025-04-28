@@ -19,8 +19,6 @@ import 'src/platform_specific/file_manager/file_manager.dart';
 class ScreenshotController {
   late GlobalKey _containerKey;
 
-  Size longWidgetSize = Size.zero;
-
   ScreenshotController() {
     _containerKey = GlobalKey();
   }
@@ -324,10 +322,6 @@ class ScreenshotController {
       rootView.scheduleInitialLayout();
       pipelineOwner.flushLayout();
 
-      try {
-        longWidgetSize = rootView.size;
-      } catch (_) {}
-
       ///
       /// Calculate Size, and capture widget.
       ///
@@ -344,6 +338,57 @@ class ScreenshotController {
       element
           .update(RenderObjectToWidgetAdapter<RenderBox>(container: rootView));
       buildOwner.finalizeTree();
+    }
+  }
+
+  ScreenshotControllerImagePendingState longWidgetToUiImagePending(
+      Widget widget,
+      {BoxConstraints constraints = const BoxConstraints(
+        maxHeight: double.maxFinite,
+      )}) {
+    final PipelineOwner pipelineOwner = PipelineOwner();
+    final _MeasurementView rootView =
+        pipelineOwner.rootNode = _MeasurementView(constraints);
+    final BuildOwner buildOwner = BuildOwner(focusManager: FocusManager());
+    final RenderObjectToWidgetElement<RenderBox> element =
+        RenderObjectToWidgetAdapter<RenderBox>(
+      container: rootView,
+      debugShortDescription: 'root_render_element_for_size_measurement',
+      child: Directionality(
+        textDirection: TextDirection.ltr,
+        child: widget,
+      ),
+    ).attachToRenderTree(buildOwner);
+    rootView.scheduleInitialLayout();
+    pipelineOwner.flushLayout();
+
+    return ScreenshotControllerImagePendingState(
+      rootView,
+      buildOwner,
+      element,
+      widget,
+    );
+  }
+
+  Future<ui.Image> longWidgetToUiImageExec(
+    ScreenshotControllerImagePendingState state, {
+    BuildContext? context,
+    Duration delay = const Duration(seconds: 1),
+    double? pixelRatio,
+  }) {
+    try {
+      return widgetToUiImage(
+        state.widget,
+        targetSize: state.rootView.size,
+        context: context,
+        delay: delay,
+        pixelRatio: pixelRatio,
+      );
+    } finally {
+      // Clean up.
+      state.element.update(
+          RenderObjectToWidgetAdapter<RenderBox>(container: state.rootView));
+      state.buildOwner.finalizeTree();
     }
   }
 }
@@ -403,4 +448,14 @@ class _MeasurementView extends RenderBox
 
   @override
   void debugAssertDoesMeetConstraints() => true;
+}
+
+class ScreenshotControllerImagePendingState {
+  final _MeasurementView rootView;
+  final BuildOwner buildOwner;
+  final RenderObjectToWidgetElement<RenderBox> element;
+  final Widget widget;
+
+  const ScreenshotControllerImagePendingState(
+      this.rootView, this.buildOwner, this.element, this.widget);
 }
