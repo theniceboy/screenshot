@@ -459,3 +459,57 @@ class ScreenshotControllerImagePendingState {
   const ScreenshotControllerImagePendingState(
       this.rootView, this.buildOwner, this.element, this.widget);
 }
+
+class ReusableScreenshotRenderer {
+  final ui.FlutterView _view;
+
+  ReusableScreenshotRenderer()
+      : _view = WidgetsBinding.instance.platformDispatcher.views.first;
+
+  Future<ui.Image> render(
+    Widget widget, {
+    required Size targetSize,
+    double pixelRatio = 1.0,
+  }) async {
+    final repaintBoundary = RenderRepaintBoundary();
+    final pipelineOwner = PipelineOwner();
+    final buildOwner = BuildOwner(focusManager: FocusManager());
+
+    final renderView = RenderView(
+      view: _view,
+      child: RenderPositionedBox(
+        alignment: Alignment.topLeft,
+        child: repaintBoundary,
+      ),
+      configuration: ViewConfiguration(
+        logicalConstraints: BoxConstraints.tight(targetSize),
+        devicePixelRatio: pixelRatio,
+      ),
+    );
+
+    pipelineOwner.rootNode = renderView;
+    renderView.prepareInitialFrame();
+
+    final rootElement = RenderObjectToWidgetAdapter<RenderBox>(
+      container: repaintBoundary,
+      child: Directionality(
+        textDirection: TextDirection.ltr,
+        child: widget,
+      ),
+    ).attachToRenderTree(buildOwner);
+
+    buildOwner.buildScope(rootElement);
+    buildOwner.finalizeTree();
+    pipelineOwner.flushLayout();
+    pipelineOwner.flushCompositingBits();
+    pipelineOwner.flushPaint();
+
+    final image = await repaintBoundary.toImage(pixelRatio: pixelRatio);
+
+    rootElement.update(
+        RenderObjectToWidgetAdapter<RenderBox>(container: repaintBoundary));
+    buildOwner.finalizeTree();
+
+    return image;
+  }
+}
